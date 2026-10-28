@@ -9,7 +9,7 @@ include employer, job, location and wage details for each case.
 - **Part 2** compares FY2023 with FY2026. DOL has published FY2026 only through Q3, so the comparison uses the same
   October–June window for both years.
 
-**→ Start with [`h1b_lca_fy2023_exploration.ipynb`](h1b_lca_fy2023_exploration.ipynb).** It is saved with
+**→ Start with [`h1b_lca_analysis.ipynb`](h1b_lca_analysis.ipynb).** It is saved with
 outputs, so it can be read on GitHub without running anything.
 
 ## Highlights
@@ -32,7 +32,7 @@ outputs, so it can be read on GitHub without running anything.
 - **Wages rose with the floor.** Median offers were up about 15% (nominal), with an unchanged ratio to the prevailing wage.
   Prevailing wages based on private salary surveys tripled.
 
-See the summaries in sections 12 and 13.6 of the notebook for the full findings and caveats. In particular, an LCA is not
+See the summaries in sections 11 and 12.6 of the notebook for the full findings and caveats. In particular, an LCA is not
 an approved visa, and the wage is the offered wage, not the wage actually paid.
 
 ## Running it
@@ -43,7 +43,7 @@ Requires Python 3.10+.
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-jupyter notebook h1b_lca_fy2023_exploration.ipynb
+jupyter notebook h1b_lca_analysis.ipynb
 ```
 
 The FY2023 files are included in `data/`. **The FY2026 file is not included** because it exceeds GitHub's 100 MB file limit.
@@ -56,7 +56,7 @@ Later runs load in seconds.
 
 ```
 .
-├── h1b_lca_fy2023_exploration.ipynb   # the analysis: narrative, code and charts (Part 1 + Part 2)
+├── h1b_lca_analysis.ipynb             # the analysis: narrative, code and charts (Part 1 + Part 2)
 ├── lca.py                             # loading, de-duplication and wage cleaning (imported by the notebook)
 ├── requirements.txt
 └── data/
