@@ -1,0 +1,15 @@
+# Python environment and caches
+.venv/
+__pycache__/
+.ipynb_checkpoints/
+
+# Parquet copies of the raw Excel files, regenerated on first run by lca.py
+cache/
+
+# OS / editor / local tooling
+.DS_Store
+.vscode/
+.idea/
+.claude/
+CLAUDE.md
+AGENTS.md
