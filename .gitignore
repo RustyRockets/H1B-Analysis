@@ -13,3 +13,6 @@ cache/
 .claude/
 CLAUDE.md
 AGENTS.md
+
+# Raw DOL files over GitHub's 100 MB limit; download from DOL (see README)
+data/LCA_Disclosure_Data_FY2026_*.xlsx

@@ -1,15 +1,17 @@
 """
 Loading and cleaning helpers for the DOL LCA (Labor Condition Application)
-disclosure data, FY2023.
+disclosure data. Written for FY2023 and reused for later fiscal years.
 
 The notebook imports from here so that the analysis cells stay focused on
 questions rather than plumbing. Everything in this module is deterministic:
 the same raw files always produce the same cleaned table.
 
 Key choices (each explained where it happens):
-  * The four quarterly Excel files are cached as Parquet on first load,
-    because parsing ~240 MB of .xlsx takes several minutes.
-  * The quarterly files overlap: ~100k cases appear in more than one file.
+  * Each fiscal year's Excel files are found in data/ by name and cached as
+    Parquet on first load, because parsing ~250 MB of .xlsx takes minutes.
+    A year may have one file per quarter (FY2023) or a single cumulative
+    file for a partial year (FY2026 so far).
+  * The files can overlap: in FY2023 ~100k cases appear in more than one.
     We keep one row per CASE_NUMBER (its most recent appearance).
   * Wages are converted to annual figures so hourly/weekly/monthly offers can
     be compared, and a small number of obvious unit-entry errors are repaired.
@@ -25,8 +27,6 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
 CACHE_DIR = ROOT / "cache"
-
-QUARTERS = [1, 2, 3, 4]
 
 # Multipliers that convert a pay rate in a given unit to an annual figure.
 # 2,080 hours = 40 h/week x 52 weeks, the standard DOL full-time convention.
@@ -48,27 +48,36 @@ NUMERIC_COLS = [
 ]
 
 
-def load_quarter(q: int) -> pd.DataFrame:
+def source_files(fiscal_year: int) -> dict[int, Path]:
+    """Map quarter number -> raw Excel file for one fiscal year, e.g. {1: .../..._FY2023_Q1.xlsx}."""
+    files = {}
+    for path in DATA_DIR.glob(f"LCA_Disclosure_Data_FY{fiscal_year}_Q*.xlsx"):
+        files[int(path.stem.rsplit("_Q", 1)[1])] = path
+    if not files:
+        raise FileNotFoundError(f"No LCA files for FY{fiscal_year} in {DATA_DIR} (see README for download links)")
+    return dict(sorted(files.items()))
+
+
+def load_quarter(fiscal_year: int, q: int) -> pd.DataFrame:
     """Load one quarterly file, reading from the Parquet cache when it exists.
 
     Every column is read as text first. Excel files mix types within columns
     (e.g. ZIP codes with and without leading zeros), so typing is done
     explicitly later rather than trusting the spreadsheet.
     """
-    cache = CACHE_DIR / f"LCA_FY2023_Q{q}.parquet"
+    cache = CACHE_DIR / f"LCA_FY{fiscal_year}_Q{q}.parquet"
     if cache.exists():
         return pd.read_parquet(cache)
 
-    raw = DATA_DIR / f"LCA_Disclosure_Data_FY2023_Q{q}.xlsx"
-    df = pd.read_excel(raw, engine="openpyxl", dtype=str)
+    df = pd.read_excel(source_files(fiscal_year)[q], engine="openpyxl", dtype=str)
     CACHE_DIR.mkdir(exist_ok=True)
     df.to_parquet(cache)
     return df
 
 
-def load_raw() -> pd.DataFrame:
-    """Stack all four quarters, tagging each row with the file it came from."""
-    frames = [load_quarter(q).assign(SOURCE_QUARTER=q) for q in QUARTERS]
+def load_raw(fiscal_year: int = 2023) -> pd.DataFrame:
+    """Stack every file for a fiscal year, tagging each row with the quarter file it came from."""
+    frames = [load_quarter(fiscal_year, q).assign(SOURCE_QUARTER=q) for q in source_files(fiscal_year)]
     return pd.concat(frames, ignore_index=True)
 
 
@@ -132,11 +141,15 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     for col in NUMERIC_COLS:
         out[col] = pd.to_numeric(out[col], errors="coerce")
 
-    # Employer names are free text; upper-casing and trimming merges the most
-    # common variants ("Apple Inc." vs "APPLE INC."). Distinct legal entities
-    # (e.g. Amazon.com Services vs Amazon Web Services) are deliberately kept
-    # apart, because that is how they file.
-    out["EMPLOYER"] = out["EMPLOYER_NAME"].str.upper().str.strip()
+    # Employer names are free text. Upper-casing and dropping periods/commas
+    # merges the common variants ("Meta Platforms, Inc." vs "META PLATFORMS INC";
+    # the trailing period alone differs between FY2023 and FY2026). Distinct
+    # legal entities (e.g. Amazon.com Services vs Amazon Web Services) are
+    # deliberately kept apart, because that is how they file.
+    out["EMPLOYER"] = (out["EMPLOYER_NAME"].str.upper()
+                                         .str.replace(r",|\.(?=\s|$)", "", regex=True)
+                                         .str.replace(r"\s+", " ", regex=True)
+                                         .str.strip())
     out["WORKSITE_CITY"] = out["WORKSITE_CITY"].str.strip().str.title()
 
     # Calendar days from receipt to decision.
@@ -150,6 +163,6 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     return annualize_wages(out)
 
 
-def load_lca() -> pd.DataFrame:
-    """One call to get the de-duplicated, cleaned FY2023 table (all visa classes, all statuses)."""
-    return clean(deduplicate(load_raw()))
+def load_lca(fiscal_year: int = 2023) -> pd.DataFrame:
+    """One call to get a fiscal year's de-duplicated, cleaned table (all visa classes, all statuses)."""
+    return clean(deduplicate(load_raw(fiscal_year))).assign(FISCAL_YEAR=fiscal_year)
